@@ -1,52 +1,44 @@
 #include "esphome/core/log.h"
-#include "tuya_select.h"
+#include "levoit_select.h"
 
 namespace esphome {
-namespace tuya {
+namespace levoit {
 
-static const char *const TAG = "tuya.select";
+static const char *const TAG = "levoit.select";
 
-void TuyaSelect::setup() {
-  this->parent_->register_listener(this->select_id_, [this](const TuyaDatapoint &datapoint) {
-    uint8_t enum_value = datapoint.value_enum;
-    ESP_LOGV(TAG, "MCU reported select %u value %u", this->select_id_, enum_value);
-    auto options = this->traits.get_options();
-    auto mappings = this->mappings_;
-    auto it = std::find(mappings.cbegin(), mappings.cend(), enum_value);
-    if (it == mappings.end()) {
-      ESP_LOGW(TAG, "Invalid value %u", enum_value);
-      return;
-    }
-    size_t mapping_idx = std::distance(mappings.cbegin(), it);
-    auto value = this->at(mapping_idx);
-    this->publish_state(value.value());
-  });
+void LevoitSelect::setup() {
+  this->parent_->register_listener(LevoitPayloadType::STATUS_RESPONSE,
+                                   [this](const uint8_t *payloadBuf, size_t payloadLen) {
+                                     if (this->purpose_ == LevoitSelectPurpose::PURIFIER_FAN_MODE) {
+                                       uint8_t purifierFanMode = payloadBuf[5];
+                                       if (purifierFanMode == 0x00) {
+                                         this->publish_state("Manual");
+                                       } else if (purifierFanMode == 0x01) {
+                                         this->publish_state("Sleep");
+                                       } else if (purifierFanMode == 0x02) {
+                                         this->publish_state("Auto");
+                                       }
+                                     }
+                                   });
 }
 
-void TuyaSelect::control(const std::string &value) {
-  if (this->optimistic_)
-    this->publish_state(value);
-
-  auto idx = this->index_of(value);
-  if (idx.has_value()) {
-    uint8_t mapping = this->mappings_.at(idx.value());
-    ESP_LOGV(TAG, "Setting %u datapoint value to %u:%s", this->select_id_, mapping, value.c_str());
-    this->parent_->set_enum_datapoint_value(this->select_id_, mapping);
-    return;
-  }
-
-  ESP_LOGW(TAG, "Invalid value %s", value.c_str());
-}
-
-void TuyaSelect::dump_config() {
-  LOG_SELECT("", "Tuya Select", this);
-  ESP_LOGCONFIG(TAG, "  Select has datapoint ID %u", this->select_id_);
-  ESP_LOGCONFIG(TAG, "  Options are:");
-  auto options = this->traits.get_options();
-  for (auto i = 0; i < this->mappings_.size(); i++) {
-    ESP_LOGCONFIG(TAG, "    %i: %s", this->mappings_.at(i), options.at(i).c_str());
+void LevoitSelect::control(const std::string &value) {
+  if (value == "Manual") {
+    this->parent_->send_command(LevoitCommand{.payloadType = LevoitPayloadType::SET_FAN_MODE,
+                                              .packetType = LevoitPacketType::SEND_MESSAGE,
+                                              .payload = {0x00, 0x00}});
+  } else if (value == "Sleep") {
+    this->parent_->send_command(LevoitCommand{.payloadType = LevoitPayloadType::SET_FAN_MODE,
+                                              .packetType = LevoitPacketType::SEND_MESSAGE,
+                                              .payload = {0x00, 0x01}});
+  } else if (value == "Auto") {
+    this->parent_->send_command(LevoitCommand{.payloadType = LevoitPayloadType::SET_FAN_MODE,
+                                              .packetType = LevoitPacketType::SEND_MESSAGE,
+                                              .payload = {0x00, 0x02}});
   }
 }
 
-}  // namespace tuya
+void LevoitSelect::dump_config() { LOG_SELECT("", "Levoit Select", this); }
+
+}  // namespace levoit
 }  // namespace esphome

@@ -7,7 +7,7 @@
 namespace esphome {
 namespace levoit {
 
-enum LevoitSensorPurpose : uint8_t { NONE, PM25 };
+enum LevoitSensorPurpose : uint8_t { PM25 };
 
 class LevoitSensor : public Component, public sensor::Sensor {
  public:
@@ -16,8 +16,8 @@ class LevoitSensor : public Component, public sensor::Sensor {
   void dump_config() override;
 
  protected:
-  LevoitSensorPurpose purpose_;
   Levoit *parent_;
+  LevoitSensorPurpose purpose_;
 };
 
 }  // namespace levoit

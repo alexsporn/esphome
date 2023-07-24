@@ -8,14 +8,40 @@ namespace esphome {
 namespace levoit {
 
 static const char *const TAG = "levoit";
-static const int COMMAND_DELAY = 500;
+static const int COMMAND_DELAY = 50;
 static const int RECEIVE_TIMEOUT = 100;
-static const int MAX_RETRIES = 10;
+static const int MAX_RETRIES = 5;
 
 void Levoit::setup() {
   this->set_interval("heartbeat", 15000, [this] {
-    LevoitCommand statusRequest = {.payloadType = LevoitPayloadType::STATUS_REQUEST, .packetType = LevoitPacketType::SEND_MESSAGE, .payload = {0x00}};
+    LevoitCommand statusRequest = {.payloadType = LevoitPayloadType::STATUS_REQUEST,
+                                   .packetType = LevoitPacketType::SEND_MESSAGE,
+                                   .payload = {0x00}};
     this->send_command(statusRequest);
+  });
+
+  this->set_interval("status", 5000, [this] {
+    if (network::is_connected()) {
+      if (remote_is_connected()) {
+        // solid
+        LevoitCommand statusRequest = {.payloadType = LevoitPayloadType::SET_WIFI_STATUS_LED,
+                                       .packetType = LevoitPacketType::SEND_MESSAGE,
+                                       .payload = {0x00, 0x01, 0x7D, 0x00, 0x7D, 0x00, 0x00}};
+        this->send_command(statusRequest);
+      } else {
+        // blink
+        LevoitCommand statusRequest = {.payloadType = LevoitPayloadType::SET_WIFI_STATUS_LED,
+                                       .packetType = LevoitPacketType::SEND_MESSAGE,
+                                       .payload = {0x00, 0x02, 0xF4, 0x01, 0xF4, 0x01, 0x00}};
+        this->send_command(statusRequest);
+      }
+    } else {
+      // off
+      LevoitCommand statusRequest = {.payloadType = LevoitPayloadType::SET_WIFI_STATUS_LED,
+                                     .packetType = LevoitPacketType::SEND_MESSAGE,
+                                     .payload = {0x00, 0x00, 0xF4, 0x01, 0xF4, 0x01, 0x00}};
+      this->send_command(statusRequest);
+    }
   });
 }
 
@@ -39,7 +65,7 @@ bool Levoit::validate_message_() {
     return new_byte == 0xA5;
 
   if (at == 1) {
-    if(new_byte == 0x52) {
+    if (new_byte == 0x52) {
       ESP_LOGE(TAG, "Received error response, ignoring packet");
       return false;
     }
@@ -87,16 +113,17 @@ bool Levoit::validate_message_() {
 
   uint8_t *payload_data = data + 9;
 
-  //If it's not a 1-byte ACK response, handle the payload.
-  if(data[1] != 0x12 || payloadLength-3 != 1) {
+  // If it's not a 1-byte ACK response, handle the payload.
+  if (data[1] != 0x12 || payloadLength - 3 != 1) {
     this->handle_payload_(payloadType, sequenceNumber, payload_data, payloadLength - 3);
   }
 
-  //acknowledge packet if required
-  if(data[1] == 0x22) {
-    LevoitCommand acknowledgeResponse = {.payloadType = payloadType, .packetType = LevoitPacketType::ACK_MESSAGE, .payload = {0x00}};
+  // acknowledge packet if required
+  if (data[1] == 0x22) {
+    LevoitCommand acknowledgeResponse = {
+        .payloadType = payloadType, .packetType = LevoitPacketType::ACK_MESSAGE, .payload = {0x00}};
     this->send_raw_command(acknowledgeResponse);
-  } else if(data[1] == 0x12) {
+  } else if (data[1] == 0x12) {
     lastCommandAcked = true;
   }
 
@@ -124,7 +151,8 @@ void Levoit::handle_payload_(LevoitPayloadType type, uint8_t sequenceNumber, uin
   }
 }
 
-void Levoit::register_listener(LevoitPayloadType payloadType, const std::function<void(uint8_t *buf, size_t len)> &func) {
+void Levoit::register_listener(LevoitPayloadType payloadType,
+                               const std::function<void(uint8_t *buf, size_t len)> &func) {
   auto listener = LevoitListener{
       .type = payloadType,
       .func = func,
@@ -141,7 +169,7 @@ void Levoit::send_raw_command(LevoitCommand command) {
   uint8_t payloadTypeByte2 = ((uint32_t) command.payloadType >> 8) & 0xff;
   uint8_t payloadTypeByte3 = (uint32_t) command.payloadType & 0xff;
 
-  //Initialize the outgoing packet
+  // Initialize the outgoing packet
   std::vector<uint8_t> rawPacket = {0xA5,
                                     (uint8_t) command.packetType,
                                     sequenceNumber,
@@ -155,7 +183,7 @@ void Levoit::send_raw_command(LevoitCommand command) {
   if (!command.payload.empty())
     rawPacket.insert(rawPacket.end(), command.payload.begin(), command.payload.end());
 
-  //Calculate checksum & insert into packet
+  // Calculate checksum & insert into packet
   uint8_t checksum = 255;
   for (uint8_t i = 0; i < rawPacket.size(); i++) {
     if (i != 5) {
@@ -171,21 +199,27 @@ void Levoit::process_command_queue_() {
   uint32_t now = millis();
   uint32_t delay = now - this->last_command_timestamp_;
 
-  if (now - this->last_rx_char_timestamp_ > RECEIVE_TIMEOUT) {
+  if (now - this->last_rx_char_timestamp_ > RECEIVE_TIMEOUT && !this->rx_message_.empty()) {
+    ESP_LOGW(TAG, "No response from U2, clearing buffer");
     this->rx_message_.clear();
   }
 
-  if(lastCommandAcked) {
+  if (lastCommandAcked) {
     this->command_queue_.erase(command_queue_.begin());
     lastCommandAcked = false;
+    lastCommandRetries = 0;
   }
 
   // Left check of delay since last command in case there's ever a command sent by calling send_raw_command_ directly
   if (delay > COMMAND_DELAY && !this->command_queue_.empty() && this->rx_message_.empty()) {
-    if(lastCommandRetries < MAX_RETRIES) {
+    if (lastCommandRetries < MAX_RETRIES) {
+      if (lastCommandRetries > 0) {
+        ESP_LOGW(TAG, "ACK response timeout, retry #%d", lastCommandRetries);
+      }
       this->send_raw_command(command_queue_.front());
       lastCommandRetries++;
     } else {
+      ESP_LOGE(TAG, "Maximum NACKs received, skipping packet");
       this->command_queue_.erase(command_queue_.begin());
       lastCommandAcked = false;
       lastCommandRetries = 0;

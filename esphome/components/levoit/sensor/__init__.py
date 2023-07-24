@@ -15,8 +15,6 @@ from .. import levoit_ns, CONF_LEVOIT_ID, Levoit
 DEPENDENCIES = ["levoit"]
 CODEOWNERS = ["@acvigue"]
 
-CONF_PURPOSE = "purpose"
-
 LevoitSensor = levoit_ns.class_("LevoitSensor", cg.Component, sensor.Sensor)
 LevoitSensorPurpose = levoit_ns.enum("LevoitSensorPurpose")
 
