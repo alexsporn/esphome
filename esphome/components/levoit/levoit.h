@@ -10,6 +10,8 @@
 namespace esphome {
 namespace levoit {
 
+enum class LevoitDeviceModel : uint8_t { NONE, CORE_300S };
+
 enum class LevoitPacketType : uint8_t { SEND_MESSAGE = 0x22, ACK_MESSAGE = 0x12, ERROR = 0x52 };
 
 enum class LevoitPayloadType : uint32_t {
@@ -42,6 +44,7 @@ typedef struct LevoitCommand {
 
 class Levoit : public Component, public uart::UARTDevice {
  public:
+  
   float get_setup_priority() const override { return setup_priority::LATE; }
   void setup() override;
   void loop() override;
