@@ -31,11 +31,12 @@ enum class LevoitPayloadType : uint32_t {
 
 struct LevoitListener {
   LevoitPayloadType type;
-  std::function<void(uint8_t *buf)> func;
+  std::function<void(uint8_t *buf, size_t len)> func;
 };
 
 typedef struct LevoitCommand {
   LevoitPayloadType payloadType;
+  LevoitPacketType packetType;
   std::vector<uint8_t> payload;
 } LevoitPacket;
 
@@ -45,9 +46,8 @@ class Levoit : public Component, public uart::UARTDevice {
   void setup() override;
   void loop() override;
   void dump_config() override;
-  void register_listener(LevoitPayloadType payloadType, const std::function<void(uint8_t *buf)> &func);
+  void register_listener(LevoitPayloadType payloadType, const std::function<void(uint8_t *buf, size_t len)> &func);
   void send_command(const LevoitCommand &command);
-  void send_empty_command(LevoitPayloadType payloadType);
 
  protected:
   bool validate_message_();
@@ -60,6 +60,8 @@ class Levoit : public Component, public uart::UARTDevice {
   uint32_t last_rx_char_timestamp_ = 0;
   std::vector<LevoitCommand> command_queue_;
   uint8_t sequenceNumber = 0;
+  bool lastCommandAcked = false;
+  int lastCommandRetries = 0;
   std::vector<LevoitListener> listeners_;
 };
 

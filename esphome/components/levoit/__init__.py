@@ -9,16 +9,13 @@ from esphome.const import CONF_ID
 DEPENDENCIES = ["uart"]
 CODEOWNERS = ["@acvigue"]
 
-CONF_LEVOIT_ID = "levoit_id"
+CONF_LEVOIT_ID = "levoit"
 levoit_ns = cg.esphome_ns.namespace("levoit")
 Levoit = levoit_ns.class_("Levoit", cg.Component, uart.UARTDevice)
 
-CONFIG_SCHEMA = (
-    cv.Schema()
-    .extend(cv.COMPONENT_SCHEMA)
-    .extend(uart.UART_DEVICE_SCHEMA)
-)
-
+CONFIG_SCHEMA = cv.Schema({
+    cv.GenerateID(): cv.declare_id(Levoit),
+}).extend(cv.COMPONENT_SCHEMA).extend(uart.UART_DEVICE_SCHEMA)
 
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])

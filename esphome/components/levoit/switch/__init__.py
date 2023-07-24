@@ -30,3 +30,4 @@ async def to_code(config):
     cg.add(var.set_levoit_parent(paren))
 
     cg.add(var.set_purpose(config[CONF_PURPOSE]))
+    await switch.register_switch(var, config)

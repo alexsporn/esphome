@@ -8,7 +8,7 @@ static const char *const TAG = "levoit.switch";
 
 void LevoitSwitch::setup() {
   if (this->purpose == AUTO_MODE || this->purpose == SLEEP_MODE) {
-    this->parent_->register_listener(LevoitPayloadType::STATUS_RESPONSE, [this](uint8_t *buf) {
+    this->parent_->register_listener(LevoitPayloadType::STATUS_RESPONSE, [this](uint8_t *buf, size_t len) {
       uint8_t fanMode = buf[5];
       if (this->purpose == AUTO_MODE) {
         this->publish_state(fanMode == 0x02);
@@ -26,11 +26,11 @@ void LevoitSwitch::write_state(bool state) {
     if (state == true) {
       if (this->purpose == AUTO_MODE) {
         this->parent_->send_command(
-            LevoitCommand{.payloadType = LevoitPayloadType::SET_FAN_MODE, .payload = {0x00, 0x02}});
+            LevoitCommand{.payloadType = LevoitPayloadType::SET_FAN_MODE, .packetType = LevoitPacketType::SEND_MESSAGE, .payload = {0x00, 0x02}});
       }
       if (this->purpose == SLEEP_MODE) {
         this->parent_->send_command(
-            LevoitCommand{.payloadType = LevoitPayloadType::SET_FAN_MODE, .payload = {0x00, 0x01}});
+            LevoitCommand{.payloadType = LevoitPayloadType::SET_FAN_MODE, .packetType = LevoitPacketType::SEND_MESSAGE, .payload = {0x00, 0x01}});
       }
     }
   }
