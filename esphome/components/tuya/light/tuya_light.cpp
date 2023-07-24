@@ -206,9 +206,8 @@ void TuyaLight::write_state(light::LightState *state) {
         float saturation, value;
         rgb_to_hsv(red, green, blue, hue, saturation, value);
         char buffer[15];
-        
-        //Tuya RGBHSV requires saturation & value to both be max
-        sprintf(buffer, "%02X%02X%02X%04XFFFF", int(red * 255), int(green * 255), int(blue * 255), hue);
+        // FF00080166FFFF
+        sprintf(buffer, "%02X%02X%02XFFFF6464", int(red * 255), int(green * 255), int(blue * 255));
         color_value = buffer;
         break;
       }
