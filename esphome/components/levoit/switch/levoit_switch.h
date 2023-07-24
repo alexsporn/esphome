@@ -7,21 +7,19 @@
 namespace esphome {
 namespace levoit {
 
-enum LevoitSwitchPurpose : uint8_t { AUTO_MODE = 1, SLEEP_MODE = 2 };
+enum LevoitSwitchPurpose : uint8_t { NONE, DISPLAY_LOCK };
 
 class LevoitSwitch : public switch_::Switch, public Component {
  public:
+  LevoitSwitch(Levoit *parent, LevoitSwitchPurpose purpose) : parent_(parent), purpose_(purpose) {}
   void setup() override;
   void dump_config() override;
-  void set_purpose(uint8_t purpose) { this->purpose = (LevoitSwitchPurpose) purpose; }
-
-  void set_levoit_parent(Levoit *parent) { this->parent_ = parent; }
 
  protected:
   void write_state(bool state) override;
 
   Levoit *parent_;
-  LevoitSwitchPurpose purpose;
+  LevoitSwitchPurpose purpose_;
 };
 
 }  // namespace levoit
